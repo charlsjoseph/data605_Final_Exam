@@ -1,0 +1,333 @@
+---
+title: "Final_Exam_part2"
+author: "Charls Joseph"
+date: "May 23, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("dplyr")
+library("ggplot2")
+library("corrplot")
+
+```
+
+
+### Part 2 
+#### Youtube link 
+https://www.youtube.com/watch?v=UZz7L3KN2u0&feature=youtu.be
+
+Descriptive and Inferential Statistics. Provide univariate descriptive statistics and appropriate plots for the training data set.  Provide a scatterplot matrix for at least two of the independent variables and the dependent variable. Derive a correlation matrix for any three quantitative variables in the dataset.  Test the hypotheses that the correlations between each pairwise set of variables is 0 and provide an 80% confidence interval.  Discuss the meaning of your analysis.  Would you be worried about familywise error? Why or why not?
+
+```{r}
+
+house.train.df <- read.csv("house-prices-advanced-regression-techniques/train.csv")
+house.train.numeric <- select_if(house.train.df, is.numeric)
+dim(house.train.df)
+house.test.df <- read.csv("house-prices-advanced-regression-techniques/test.csv")
+dim(house.test.df)
+
+summary(house.train.numeric)
+
+
+```
+
+Lets build a histogram of sales price to see the distribution. Below histogram gives you a slighly right skewed distribution. 
+
+```{r}
+hist(house.train.df$SalePrice/1000, breaks = 50, xlab = 'Sales  Price in K$')
+
+
+```
+
+Lets build couple Box-plots for some of independent qualitative variables against sales price to see if there is any relation. 
+
+#### Box-plot -  Type of dwelling v/s sales Price
+
+Observaton: Single-family Detached & Townhouse End Unit has highest mean Sales price. 
+
+```{r}
+
+ggplot(house.train.df, aes(x=BldgType, y=SalePrice/1000, fill = BldgType)) + geom_boxplot()
+
+```
+
+#### Box-plot -  Type of foundation v/s sales Price
+
+Observation : Poured Contrete house has highest mean sale price and Slab House has least mean sale price. 
+```{r}
+ggplot(house.train.df, aes(x=Foundation, y=SalePrice/1000, fill =Foundation )) + geom_boxplot()
+```
+#### Box-plot -  Neighborhood v/s sales Price
+
+Observation : There are couple of neighborhoods which are highest mean sales price( e.g : Northridge Heights , Northridge , Stone Brook ... )
+
+
+```{r}
+ggplot(house.train.df, aes(x=Neighborhood, y=SalePrice/1000, fill=Neighborhood )) + 
+  geom_boxplot() + coord_flip()
+```
+#### Box-plot -  Overall Quality v/s sales Price
+
+This shows the exactly the relation between Quality and sales price. As quality increases, the sales price goes high which makes sense. 
+
+```{r}
+house.train.df$OverallQual_factor <- as.factor(as.character(house.train.df$OverallQual))
+
+ggplot(house.train.df, aes(x=OverallQual_factor, y=SalePrice/1000, fill = OverallQual_factor)) + 
+  geom_boxplot() 
+
+
+```
+
+Now, lets build the correlation matrix to see the correlation between a set of variables on sales price. 
+
+### Observation: High correlation observed for below independent Variables. 
+
+#### OverallQual: Rates the overall material and finish of the house
+#### GrLivArea: Above grade (ground) living area square feet
+#### GarageArea: Size of garage in square feet
+#### TotalBsmtSF: Total square feet of basement area
+#### YearBuilt: Original construction date
+#### FullBath: Full bathrooms above grade
+
+
+```{r}
+
+corr.data<-select(house.train.df,SalePrice,PoolArea,TotalBsmtSF,FullBath,LowQualFinSF, LotArea,BsmtUnfSF,GarageArea,YearBuilt,OverallQual,FullBath,GrLivArea,Fireplaces)
+corr.data<-round(cor(corr.data),4)
+
+corrplot(corr.data,method ="color")
+
+```
+
+### Test the hypotheses that the correlations between each pairwise set of variables is 0 and provide an 80% confidence interval. 
+
+Lets test the hypothesis that correlation between two variable is 0 at 80% confidence interval. 
+
+#### GarageArea v/s Sales price. 
+
+The correlation is 0.6234314 and we are 80% confident that the correlaton between GarageArea and SalePrice is 0.6024756 and 0.6435283.
+
+```{r}
+cor.test(house.train.df$SalePrice,house.train.df$GarageArea, conf.level = 0.8)
+
+```
+
+#### GrLivArea v/s Sales price. 
+
+The correlation is 0.7086245 and we are 80% confident that the correlaton between GrLivArea and SalePrice is 0.6915087 and 0.7249450
+
+```{r}
+cor.test(house.train.df$SalePrice,house.train.df$GrLivArea, conf.level = 0.8)
+```
+#### TotalBsmtSF v/s Sales price. 
+
+The correlation is 0.6135806 and we are 80% confident that the correlaton between TotalBsmtSF and SalePrice is 0.5922142 and 0.6340846
+
+```{r}
+cor.test(house.train.df$SalePrice,house.train.df$TotalBsmtSF, conf.level = 0.8)
+
+```
+
+## Invert your correlation matrix from above. (This is known as the precision matrix and contains variance inflation factors on the diagonal.) Multiply the correlation matrix by the precision matrix, and then multiply the precision matrix by the correlation matrix. Conduct LU decomposition on the matrix.  
+
+
+```{r}
+
+precision.matrix<-solve(corr.data)
+round(precision.matrix, 4)
+```
+
+```{r}
+round(corr.data %*% precision.matrix, 4)
+
+```
+
+```{r}
+round(precision.matrix %*% corr.data, 4)
+```
+
+Now, lets Do LU decomposition of correlation matrix 
+
+Using the LU function from my previous assignment. 
+
+```{r}
+
+factorize <- function(A) 
+{
+  if (nrow(A) == ncol(A)) 
+  {
+      size <- nrow(A)
+      # Constructing a diagonal matrix. This will become the matrix L after factorization.
+      L <- diag(size) 
+      for (i in 1:(size - 1)) 
+      {
+          for (j in (i + 1):size) 
+          {
+              L[j, i] <- A[j, i] / A[i, i]  # building the L matrix
+              A[j, ]  <- A[j, ] - L[j, i] * A[i, ] # building U matrix
+          }
+      }
+      
+
+  }
+  result<-list(L,A)
+  return(result)
+
+}
+```
+
+Printing L and U Matrix. 
+
+```{r}
+result <- factorize(corr.data)
+L <- result[[1]]
+U <- result[[2]]
+
+
+```
+
+Lets check multipling L and U gives back the actual correlation data. Verified that both L*U and the actual correlation matrix is same. 
+
+```{r}
+
+corr.data_1 <- round(L %*% U ,4)
+
+corr.data_1 == corr.data
+```
+
+## Feature Engineering and Selection.
+
+As a first step, we will convert the MSSubClass column into a factor variable and dropping some columns which are having null values. 
+
+```{r}
+library(caTools)
+set.seed(123)
+
+head(house.train.df)
+
+
+house.train.df$MSSubClass = factor(house.train.df$MSSubClass, levels = c(20, 30, 40 , 45, 50, 60, 70, 75, 80, 85, 90, 120, 150, 160, 180, 190))
+
+
+house.test.df$MSSubClass = factor(house.test.df$MSSubClass, levels = c(20, 30, 40 , 45, 50, 60, 70, 75, 80, 85, 90, 120, 150, 160, 180, 190))
+
+house.train.df <- house.train.df[, -which(colMeans(is.na(house.train.df)) > 0)]
+```
+
+Performing a backward elimination method to filter some of the independent variables which are not significant or less related 
+
+```{r}
+
+lm1 <- lm(data = house.train.df , formula = SalePrice ~ . )
+summary(lm1)
+
+step(lm1 ,data= house.train.df , direction = "backward" ,test = "F")
+
+
+
+```
+
+Backward elimination selected 39 independent variables, Some are quantitative and some are categorical. 
+
+```{r}
+
+regressor <- lm(formula = SalePrice ~ MSZoning + LotArea + Street + LandContour + 
+    LotConfig + LandSlope + Neighborhood + Condition1 + Condition2 + 
+    BldgType + HouseStyle + OverallQual + OverallCond + YearBuilt + 
+    YearRemodAdd + RoofStyle + RoofMatl + ExterQual + Foundation + 
+    BsmtFinSF1 + BsmtFinSF2 + BsmtUnfSF + X1stFlrSF + X2ndFlrSF + 
+    FullBath + BedroomAbvGr + KitchenAbvGr + KitchenQual + TotRmsAbvGrd + 
+    Functional + Fireplaces + GarageCars + GarageArea + WoodDeckSF + 
+    ScreenPorch + PoolArea + MoSold + SaleType, data = house.train.df)
+
+summary(regressor)
+
+
+```
+
+Subsetting the both train  and test dataframe with selected independent variables. 
+
+```{r}
+
+library(randomForest)
+set.seed(123)
+
+house.train.df1 <- house.train.df %>% select('MSZoning', 'LotArea', 'Street', 'LandContour' , 'LotConfig' , 'LandSlope' ,  'Neighborhood' ,  'Condition1' ,  'Condition2' , 'BldgType' , 'HouseStyle' , 'OverallQual' ,'OverallCond' , 'YearBuilt' , 'YearRemodAdd' , 'RoofStyle' , 'RoofMatl', 'ExterQual' , 'Foundation', 'BsmtFinSF1' , 'BsmtFinSF2' , 'BsmtUnfSF' , 'X1stFlrSF' , 'X2ndFlrSF' , 'FullBath' , 'BedroomAbvGr' , 'KitchenAbvGr' , 'KitchenQual' , 'TotRmsAbvGrd' , 'Functional' , 'Fireplaces' , 'GarageCars' , 'GarageArea' , 'WoodDeckSF' ,  'ScreenPorch' , 'PoolArea' , 'MoSold' , 'SaleType', 'SalePrice'  )
+
+ncol(house.train.df1)
+
+house.test.df1 <- house.test.df %>% select( 'MSZoning', 'LotArea', 'Street', 'LandContour' , 'LotConfig' , 'LandSlope' ,  'Neighborhood' ,  'Condition1' ,  'Condition2' , 'BldgType' , 'HouseStyle' , 'OverallQual' ,'OverallCond' , 'YearBuilt' , 'YearRemodAdd' , 'RoofStyle' , 'RoofMatl', 'ExterQual' , 'Foundation', 'BsmtFinSF1' , 'BsmtFinSF2' , 'BsmtUnfSF' , 'X1stFlrSF' , 'X2ndFlrSF' , 'FullBath' , 'BedroomAbvGr' , 'KitchenAbvGr' , 'KitchenQual' , 'TotRmsAbvGrd' , 'Functional' , 'Fireplaces' , 'GarageCars' , 'GarageArea' , 'WoodDeckSF' ,  'ScreenPorch' , 'PoolArea' , 'MoSold' , 'SaleType'  )
+
+```
+By looking at the test data, there are a lot of missing values for some of the quantitative and categorical variables. To aviod missing value problem with categorical variable, I'm dropping all categorical variables ad keeping only qualitative variables and use mean method to fill the missing qualitative variables in the test data. 
+
+```{r}
+summary(house.train.df1)
+
+summary(house.test.df1)
+
+
+```
+
+Dropping all categorical fields from both train and test data. filling the missing values with the mean value. 
+
+```{r}
+
+house.train.df3 <- (house.train.df1[sapply(house.train.df1, is.numeric)])
+house.test.df3 <- (house.test.df1[sapply(house.test.df1, is.numeric)])
+
+
+
+house.test.df3$BsmtFinSF1 = ifelse(is.na(house.test.df3$BsmtFinSF1),
+                     ave(house.train.df3$BsmtFinSF1, FUN = function(x) mean(x, na.rm = TRUE)),
+                     house.test.df3$BsmtFinSF1)
+
+house.test.df3$BsmtFinSF2 = ifelse(is.na(house.test.df3$BsmtFinSF2),
+                     ave(house.train.df3$BsmtFinSF2, FUN = function(x) mean(x, na.rm = TRUE)),
+                     house.test.df3$BsmtFinSF2)
+
+house.test.df3$BsmtUnfSF = ifelse(is.na(house.test.df3$BsmtUnfSF),
+                     ave(house.train.df3$BsmtUnfSF, FUN = function(x) mean(x, na.rm = TRUE)),
+                     house.test.df3$BsmtUnfSF)
+
+
+house.test.df3$GarageCars = ifelse(is.na(house.test.df3$GarageCars),
+                     ave(house.train.df3$GarageCars, FUN = function(x) mean(x, na.rm = TRUE)),
+                     house.test.df3$GarageCars)
+
+house.test.df3$GarageArea = ifelse(is.na(house.test.df3$GarageArea),
+                     ave(house.train.df3$GarageArea, FUN = function(x) mean(x, na.rm = TRUE)),
+                     house.test.df3$GarageArea)
+
+
+summary(house.train.df3)
+
+
+ncol(house.train.df3)
+regressor = randomForest(x = house.train.df3[-22],
+                         y = house.train.df3$SalePrice,
+                         ntree = 500)
+
+```
+
+predicting for the new test data. 
+
+```{r}
+y_pred = predict(regressor, newdata = house.test.df3)
+result <- data.frame('Id' = house.test.df$Id , 'SalePrice' = y_pred )
+write.csv(result, file = "submission.csv", row.names=FALSE)
+head(result)
+
+
+```
+
+Attaching the score details from kaggle.
+username: charlsjoseph
+score: 0.15170
+
+![Kaggle Score](Kaggle_score.JPG)
+
+
